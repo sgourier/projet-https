@@ -9,13 +9,13 @@ Procédure
 
   * importer le dossier PaypalBundle dans votre dossier Src
 
-  * Ajouter dans le composer la dépendance au sdk de paypal en entrant la commande suivante dans le composer.json
-   "paypal/rest-api-sdk-php": "^1.7.0"
+  * Ajouter dans le composer la dépendance au sdk de paypal en entrant la commande suivante dans le composer.json  
+   > "paypal/rest-api-sdk-php": "^1.7.0"
 
   * Ajouter le service paypal_interface dans le fichier service.yml  
       > paypal_interface:   
-           > class: PayPalBundle\Services\PaypalInterface  
-           > arguments: ["%paypal_client_id%","%paypal_client_secret%","%paypal_mode%","@router"]  
+           class: PayPalBundle\Services\PaypalInterface  
+           arguments: ["%paypal_client_id%","%paypal_client_secret%","%paypal_mode%","@router"]  
 
   * Ajouter les client_id et client_secret de votre appli dans le fichier parameters.yml   
      > paypal_client_id: votreClientId  
