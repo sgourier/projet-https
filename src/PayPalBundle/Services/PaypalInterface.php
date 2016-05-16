@@ -34,6 +34,8 @@ class PaypalInterface
 	private $router;
 	private $mode;
 	private $taxesPercent;
+	private $accessToken;
+	private $expirationDate;
 
 	/**
 	 * PaypalInterface constructor.
@@ -47,6 +49,9 @@ class PaypalInterface
 		$this->router = $router;
 		$this->taxesPercent = $taxePercent;
 		$this->apiContext = $this->getApiContext();
+		$resultCurlAuth = $this->getApiContextCurl();
+		$this->accessToken = $resultCurlAuth['access_token'];
+		$this->expirationDate = $resultCurlAuth['expires_in'];
 	}
 
 	public function getApiContext()
@@ -168,84 +173,109 @@ class PaypalInterface
 			'grant_type' => "client_credentials"
 		);
 
-		$fields_string ="";
-
-		//url-ify the data for the POST
-		foreach($fields as $key=>$value) { $fields_string .= $key.'='.$value.'&'; }
-		rtrim($fields_string, '&');
-
 		$ch = curl_init();
 
 		curl_setopt($ch,CURLOPT_URL,"https://api.sandbox.paypal.com/v1/oauth2/token");
 		curl_setopt($ch,CURLOPT_HTTPHEADER,array("Accept: application/json","Accept-Language: fr_FR"));
 		curl_setopt($ch,CURLOPT_USERPWD,$this->clientId . ":" . $this->clientSecret);
-		curl_setopt($ch,CURLOPT_POST, count($fields));
-		curl_setopt($ch,CURLOPT_POSTFIELDS, $fields_string);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch,CURLOPT_POST, true);
+		curl_setopt($ch,CURLOPT_POSTFIELDS, http_build_query($fields));
 
 		$result = curl_exec($ch);
 		curl_close($ch);
 
-		return $result[''];
+		$result = json_decode( $result );
+
+		return array($result);
 	}
 
-	public function createExpressPaymentCurl()
+	public function createExpressPaymentCurl($items,$routeCallbackName,$currency = "EUR",$description = "Payment description",$sale = "sale")
 	{
-		$curl = curl_init();
+		$subTotal = 0;
 
-		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-		curl_setopt($curl, CURLOPT_POST, true);
-		curl_setopt($curl, CURLOPT_URL, 'https://api-3t.sandbox.paypal.com/nvp');
-		curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query(array(
-			'USER' => 'usuario_da_api',
-			'PWD' => '123123123123',
-			'SIGNATURE' => 'assinatura.da.api',
+		foreach ($items as $item)
+		{
+			$itemTmp = new Item();
+			$itemTmp->setName($item['name'])
+			        ->setCurrency($item['currency'])
+			        ->setQuantity($item['quantity'])
+			        ->setSku($item['ref']) // Similar to `item_number` in Classic API
+			        ->setPrice($item['price']);
 
-			'METHOD' => 'SetExpressCheckout',
-			'VERSION' => '108',
-			'LOCALECODE' => 'pt_BR',
+			$itemArray[] = $itemTmp;
 
-			'PAYMENTREQUEST_0_AMT' => 100,
-			'PAYMENTREQUEST_0_CURRENCYCODE' => 'BRL',
-			'PAYMENTREQUEST_0_PAYMENTACTION' => 'Sale',
-			'PAYMENTREQUEST_0_ITEMAMT' => 100,
+			$subTotal += floatval($item['price']);
+		}
 
-			'L_PAYMENTREQUEST_0_NAME0' => 'Exemplo',
-			'L_PAYMENTREQUEST_0_DESC0' => 'Assinatura de exemplo',
-			'L_PAYMENTREQUEST_0_QTY0' => 1,
-			'L_PAYMENTREQUEST_0_AMT0' => 100,
-			'L_PAYMENTREQUEST_0_ITEMCATEGORY0' => 'Digital',
+		$taxes = ($subTotal * floatval($this->taxesPercent))/100;
+		$total = $subTotal + $taxes;
 
-			'L_BILLINGTYPE0' => 'RecurringPayments',
-			'L_BILLINGAGREEMENTDESCRIPTION0' => 'Exemplo',
+		$ch = curl_init();
 
-			'CANCELURL' => 'http://localhost/cancel.html',
-			'RETURNURL' => 'http://localhost/sucesso.html'
+		curl_setopt($ch,CURLOPT_URL,"https://api.sandbox.paypal.com/v1/payments/payment");
+		curl_setopt($ch,CURLOPT_HTTPHEADER,array("Accept: application/json","Accept-Language: fr_FR","Authorization: ".$this->accessToken));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array(
+			'intent' => 'sale',
+			'redirect_urls' => array(
+				"return_url" => $this->router->generate($routeCallbackName,array('result'=>"ok"),UrlGeneratorInterface::ABSOLUTE_URL),
+				"cancel_url" => $this->router->generate($routeCallbackName,array('result'=>"nok"),UrlGeneratorInterface::ABSOLUTE_URL)
+			),
+			'payer' => array(
+				"payment_method" => "paypal"
+			),
+
+			'transactions' => array(
+				"amount" => array(
+					"total" => $total,
+					"currency" => $currency
+				),
+			    "description" => $description
+			)
 		)));
 
-		$response =    curl_exec($curl);
+		$result = curl_exec($ch);
 
-		curl_close($curl);
+		curl_close($ch);
 
-		$nvp = array();
+		$result = json_decode( $result );
 
-		if (preg_match_all('/(?<name>[^\=]+)\=(?<value>[^&]+)&?/', $response, $matches)) {
-			foreach ($matches['name'] as $offset => $name) {
-				$nvp[$name] = urldecode($matches['value'][$offset]);
+		if($result['state'] == "created")
+		{
+			foreach ($result['links'] as $link)
+			{
+				if($link['rel'] == 'approval_url')
+				{
+					return $link['href'];
+				}
 			}
 		}
-		if (isset($nvp['ACK']) && $nvp['ACK'] == 'Success') {
-			$query = array(
-				'cmd'    => '_express-checkout',
-				'token'  => $nvp['TOKEN']
-			);
-		}
-		
-		return "https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=".$query['cmd']."&token=".$query['token'];
+
+		throw new BadRequestHttpException("Payment failed, please try again");
+
 	}
 
-	public function paymentExecutionCurl()
+	public function paymentExecutionCurl($paymentId,$payerId)
 	{
 
+		$ch = curl_init();
+
+		curl_setopt($ch,CURLOPT_URL,"https://api.sandbox.paypal.com/v1/payments/payment/".$paymentId."/execute/");
+		curl_setopt($ch,CURLOPT_HTTPHEADER,array("Accept: application/json","Accept-Language: fr_FR","Authorization: ".$this->accessToken));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array(
+			'payer_id' => $payerId,
+		)));
+
+		$result = curl_exec($ch);
+		curl_close($ch);
+		
+		return $result;
 	}
 }

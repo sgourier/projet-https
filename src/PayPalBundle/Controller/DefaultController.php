@@ -37,7 +37,7 @@ class DefaultController extends Controller
         $routeName = "payment_callback";
         $shippingPrice = 0;
 
-        $paymentRoute = $this->get('service_container')->get('paypal_interface')->createExpressPayment($items,$routeName,$shippingPrice);
+        $paymentRoute = $this->get('service_container')->get('paypal_interface')->createExpressPaymentCurl($items,$routeName,$shippingPrice);
         
         return $this->redirect($paymentRoute);
     }
@@ -51,7 +51,7 @@ class DefaultController extends Controller
 
         if($result == "ok")
         {
-            $this->get('service_container')->get('paypal_interface')->paymentExecution($request->query->get('paymentId'),$request->query->get('PayerID'));
+            $this->get('service_container')->get('paypal_interface')->paymentExecutionCurl($request->query->get('paymentId'),$request->query->get('PayerID'));
         }
         else
         {
