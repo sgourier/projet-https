@@ -186,12 +186,12 @@ class PaypalInterface
 		$result = curl_exec($ch);
 		curl_close($ch);
 
-		$result = json_decode( $result );
+		$result = json_decode( $result, true );
 
-		return array($result);
+		return $result;
 	}
 
-	public function createExpressPaymentCurl($items,$routeCallbackName,$currency = "EUR",$description = "Payment description",$sale = "sale")
+	public function createExpressPaymentCurl($items,$routeCallbackName,$shippingPrice,$currency = "EUR",$description = "Payment description",$sale = "sale")
 	{
 		$subTotal = 0;
 
@@ -215,11 +215,11 @@ class PaypalInterface
 		$ch = curl_init();
 
 		curl_setopt($ch,CURLOPT_URL,"https://api.sandbox.paypal.com/v1/payments/payment");
-		curl_setopt($ch,CURLOPT_HTTPHEADER,array("Accept: application/json","Accept-Language: fr_FR","Authorization: ".$this->accessToken));
+		curl_setopt($ch,CURLOPT_HTTPHEADER,array("Content-Type: application/json","Accept-Language: en_US","Authorization: Bearer ".$this->accessToken));
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array(
+		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(array(
 			'intent' => 'sale',
 			'redirect_urls' => array(
 				"return_url" => $this->router->generate($routeCallbackName,array('result'=>"ok"),UrlGeneratorInterface::ABSOLUTE_URL),
@@ -230,11 +230,13 @@ class PaypalInterface
 			),
 
 			'transactions' => array(
-				"amount" => array(
-					"total" => $total,
-					"currency" => $currency
-				),
-			    "description" => $description
+				array(
+					"amount" => array(
+						"total" => round($total,2),
+						"currency" => $currency
+					),
+				    "description" => $description
+				)
 			)
 		)));
 
@@ -242,7 +244,7 @@ class PaypalInterface
 
 		curl_close($ch);
 
-		$result = json_decode( $result );
+		$result = json_decode( $result, true );
 
 		if($result['state'] == "created")
 		{
