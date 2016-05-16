@@ -6,4 +6,4 @@ parameters:
 services:
     paypal_interface:
         class: PayPalBundle\Services\PaypalInterface
-        arguments: ["%paypal_client_id%","%paypal_client_secret%","%paypal_mode%","@router"]
+        arguments: ["%paypal_client_id%","%paypal_client_secret%","%paypal_mode%","%paypal_taxe_percent%","@router"]

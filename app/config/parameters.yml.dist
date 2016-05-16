@@ -20,3 +20,4 @@ parameters:
     paypal_client_id: AQD6iLtG1mWtTDPY10FCC4lGPwk16-ufblA0d67yxfzYrIKIZIAbkVk_WTaqPrMN0oj2bNdHQ4pG34nj
     paypal_client_secret: ELUQZqCfMNa7n2suSzBwrfVuI1quRa4Q0bMwCyzKuIF8WULnB4iosigoAizpRk1wPGDbBosWjJIcnwjk
     paypal_mode: sandbox
+    paypal_taxe_percent: 20

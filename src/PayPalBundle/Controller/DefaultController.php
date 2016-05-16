@@ -34,13 +34,10 @@ class DefaultController extends Controller
             )
         );
         
-        $total = 7.49;
         $routeName = "payment_callback";
         $shippingPrice = 0;
-        $taxes = 1.50;
-        $subTotal = 5.99;
-        
-        $paymentRoute = $this->get('service_container')->get('paypal_interface')->createExpressPayment($items,$total,$routeName,$shippingPrice,$taxes,$subTotal);
+
+        $paymentRoute = $this->get('service_container')->get('paypal_interface')->createExpressPayment($items,$routeName,$shippingPrice);
         
         return $this->redirect($paymentRoute);
     }
